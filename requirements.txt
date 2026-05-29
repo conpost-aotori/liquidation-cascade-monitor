@@ -1,0 +1,5 @@
+jinja2>=3.1
+playwright>=1.40
+httpx>=0.27          # Hyperliquid public API + Discord webhook
+tweepy>=4.14         # X (Twitter) API v2 posting
+python-dotenv>=1.0   # local .env loading (CI uses GitHub Secrets instead)

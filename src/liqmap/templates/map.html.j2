@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --txt: #e9eef7;
+    --sec: #9aa7bd;
+    --mut: #66748c;
+    --red: #ff4d6d;
+    --red-soft: #ff7088;
+    --grn: #33e09b;
+    --grn-soft: #46e6aa;
+    --amber: #f5b53d;
+    --line: rgba(255,255,255,0.07);
+  }
+  html, body { width: 1600px; height: 900px; }
+  body {
+    font-family: 'Inter', 'Noto Sans JP', system-ui, sans-serif;
+    color: var(--txt);
+    -webkit-font-smoothing: antialiased;
+    background: #080d18;
+  }
+  #card {
+    width: 1600px; height: 900px;
+    padding: 32px 48px 26px;
+    display: flex; flex-direction: column;
+    background:
+      radial-gradient(1100px 560px at 12% -8%, #16243f 0%, rgba(22,36,63,0) 55%),
+      radial-gradient(900px 700px at 100% 120%, #121a30 0%, rgba(18,26,48,0) 50%),
+      linear-gradient(158deg, #0b1120 0%, #080d18 100%);
+  }
+
+  /* ---- header ---- */
+  header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .title-block { display: flex; align-items: stretch; gap: 18px; }
+  .accent-bar { width: 6px; border-radius: 3px; align-self: stretch;
+    background: linear-gradient(180deg, #4f9bff, #2f6df0); box-shadow: 0 0 16px rgba(61,139,253,.5); }
+  h1 { font-size: 41px; font-weight: 700; letter-spacing: .5px; line-height: 1.1; }
+  .subtitle { font-size: 18px; color: var(--sec); margin-top: 8px; font-weight: 500; }
+  .price-block { text-align: right; }
+  .price-label { font-size: 15px; color: var(--sec); letter-spacing: .6px; }
+  .price-value { font-size: 47px; font-weight: 700; font-variant-numeric: tabular-nums;
+    letter-spacing: .5px; margin-top: 2px; }
+
+  /* ---- main ---- */
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 430px;
+    gap: 36px; margin-top: 22px; }
+
+  .chart { display: flex; flex-direction: column; min-width: 0; }
+  .legend { display: flex; gap: 28px; align-items: center; height: 26px; font-size: 15px; color: var(--sec); }
+  .legend .lg { display: flex; align-items: center; gap: 9px; }
+  .sw { width: 13px; height: 13px; border-radius: 3px; display: inline-block; }
+  .sw.long { background: var(--red); }
+  .sw.short { background: var(--grn); }
+
+  .plot { flex: 1; min-height: 0; display: flex; position: relative; margin-top: 8px; }
+  .yaxis { width: 70px; position: relative; flex: none; }
+  .ylab { position: absolute; right: 14px; transform: translateY(-50%);
+    font-size: 14px; color: var(--sec); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  .region { flex: 1; position: relative; min-width: 0; }
+  .track { position: absolute; left: 0; top: 0; bottom: 0; right: 150px;
+    border-left: 1px solid rgba(255,255,255,0.16); }
+  .gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.055); }
+  .bar { position: absolute; left: 0; border-radius: 0 4px 4px 0; min-width: 2px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.35); display: flex; align-items: center; justify-content: flex-end; }
+  .barval { font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.96);
+    padding-right: 8px; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.55); }
+  .barval-out { position: absolute; transform: translateY(-50%); font-size: 11.5px;
+    font-weight: 600; padding-left: 8px; white-space: nowrap; }
+  .barval-out.long { color: #ff8a9c; }
+  .barval-out.short { color: #5fe7b4; }
+  .annot { position: absolute; transform: translateY(-50%); white-space: nowrap;
+    font-size: 14.5px; font-weight: 600; display: flex; align-items: center; gap: 5px; padding-left: 9px; }
+  .annot .caret { font-size: 11px; opacity: .9; }
+  .annot.long { color: var(--red-soft); }
+  .annot.short { color: var(--grn-soft); }
+
+  .priceline { position: absolute; left: 0; right: 0; height: 0;
+    border-top: 1.5px dashed rgba(245,181,61,.85); }
+  .pricepill { position: absolute; left: 0; transform: translateY(-50%);
+    background: var(--amber); color: #1a1205; font-weight: 700; font-size: 15px;
+    padding: 5px 12px; border-radius: 8px; font-variant-numeric: tabular-nums;
+    box-shadow: 0 3px 14px rgba(245,181,61,.32); }
+
+  .xaxis { position: relative; height: 22px; margin: 12px 150px 0 70px; }
+  .xlab { position: absolute; transform: translateX(-50%); font-size: 13.5px;
+    color: var(--sec); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .axis-caption { text-align: center; font-size: 14px; color: var(--mut); margin-top: 8px;
+    padding-right: 80px; }
+
+  /* ---- panel ---- */
+  .panel { background: rgba(255,255,255,0.025); border: 1px solid var(--line);
+    border-radius: 16px; padding: 24px 24px 22px; display: flex; flex-direction: column; min-height: 0; }
+  .panel h2 { font-size: 21px; font-weight: 700; margin-bottom: 16px; }
+  .scenario { margin-bottom: 16px; }
+  .sc-head { display: flex; align-items: center; gap: 9px; font-size: 16.5px; font-weight: 700; }
+  .sc-head.down { color: var(--red-soft); }
+  .sc-head.up { color: var(--grn-soft); }
+  .sc-body { font-size: 14.5px; line-height: 1.72; color: #c2ccdb; margin-top: 7px; }
+
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+  .dot.down, .dot.long { background: var(--red); box-shadow: 0 0 9px rgba(255,77,109,.6); }
+  .dot.up, .dot.short { background: var(--grn); box-shadow: 0 0 9px rgba(51,224,155,.55); }
+
+  .levels { margin-top: 4px; }
+  .levels-title, .mood-title { font-size: 14px; color: var(--sec); margin-bottom: 10px; letter-spacing: .3px; }
+  .level-row { display: flex; align-items: center; gap: 11px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .lv-price { font-weight: 700; font-size: 15.5px; width: 86px; font-variant-numeric: tabular-nums; }
+  .lv-label { color: var(--sec); font-size: 14px; flex: 1; }
+  .lv-not { font-weight: 700; font-size: 15.5px; font-variant-numeric: tabular-nums; }
+  .lv-not.long { color: var(--red-soft); }
+  .lv-not.short { color: var(--grn-soft); }
+
+  .mood { margin-top: auto; padding-top: 18px; }
+  .chips { display: flex; gap: 9px; flex-wrap: wrap; }
+  .chip { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 999px; padding: 7px 15px; font-size: 13.5px; color: #c2ccdb; }
+
+  /* ---- footer ---- */
+  footer { display: flex; justify-content: space-between; align-items: center;
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--mut); }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .badge { width: 27px; height: 27px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 12.5px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, #4f9bff, #2f6df0); box-shadow: 0 0 12px rgba(61,139,253,.45); }
+  .brand-name { color: var(--sec); font-weight: 600; font-size: 15px; }
+  .brand-handle { color: var(--mut); font-size: 14px; }
+  .foot-center { font-size: 13.5px; }
+  .foot-right { text-align: right; }
+  .disclaim { color: #55617a; font-size: 12px; margin-top: 3px; }
+</style>
+</head>
+<body>
+<div id="card">
+  <header>
+    <div class="title-block">
+      <div class="accent-bar"></div>
+      <div>
+        <h1>{{ title }}</h1>
+        <div class="subtitle">{{ subtitle }}</div>
+      </div>
+    </div>
+    <div class="price-block">
+      <div class="price-label">{{ asset }} / {{ quote }} ・ 現在値</div>
+      <div class="price-value">{{ current_price_label }}</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="chart">
+      <div class="legend">
+        <span class="lg"><i class="sw long"></i>ロング清算 (下落で発火)</span>
+        <span class="lg"><i class="sw short"></i>ショート清算 (上昇で発火)</span>
+      </div>
+
+      <div class="plot">
+        <div class="yaxis">
+          {% for yl in y_labels %}
+          <div class="ylab" style="top:{{ yl.top }}%">{{ yl.label }}</div>
+          {% endfor %}
+        </div>
+        <div class="region">
+          <div class="track">
+            {% for t in x_ticks %}
+            <div class="gridline" style="left:{{ t.left }}%"></div>
+            {% endfor %}
+            {% for b in bands %}
+            <div class="bar {{ b.side }}" style="top:{{ b.top }}%;height:{{ b.height }}%;width:{{ b.width }}%;background:linear-gradient(90deg,{{ b.color_dark }},{{ b.color }});">{% if b.value_inside %}<span class="barval">{{ b.value }}</span>{% endif %}</div>
+            {% if b.value_outside %}
+            <div class="barval-out {{ b.side }}" style="top:{{ b.center }}%;left:{{ b.width }}%">{{ b.value }}</div>
+            {% endif %}
+            {% if b.annotation %}
+            <div class="annot {{ b.ann_side }}" style="top:{{ b.center }}%;left:{{ b.width }}%"><span class="caret">◀</span>{{ b.annotation }}</div>
+            {% endif %}
+            {% endfor %}
+          </div>
+          <div class="priceline" style="top:{{ price_line.top }}%"></div>
+        </div>
+        <div class="pricepill" style="top:{{ price_line.top }}%">{{ price_line.label }}</div>
+      </div>
+
+      <div class="xaxis">
+        {% for t in x_ticks %}
+        <div class="xlab" style="left:{{ t.left }}%">{{ t.label }}</div>
+        {% endfor %}
+      </div>
+      <div class="axis-caption">{{ axis_caption }}</div>
+    </section>
+
+    <aside class="panel">
+      <h2>カスケード・シナリオ</h2>
+      {% for s in scenarios %}
+      <div class="scenario">
+        <div class="sc-head {{ s.direction }}"><i class="dot {{ s.direction }}"></i>{{ s.title }}</div>
+        <div class="sc-body">{{ s.body }}</div>
+      </div>
+      {% endfor %}
+
+      <div class="levels">
+        <div class="levels-title">主要レベル</div>
+        {% for kl in key_levels %}
+        <div class="level-row">
+          <i class="dot {{ kl.side }}"></i>
+          <span class="lv-price">{{ kl.price_label }}</span>
+          <span class="lv-label">{{ kl.label }}</span>
+          <span class="lv-not {{ kl.side }}">{{ kl.notional_label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="mood">
+        <div class="mood-title">現在の地合い</div>
+        <div class="chips">
+          {% for c in mood_chips %}<span class="chip">{{ c }}</span>{% endfor %}
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <div class="brand">
+      <span class="badge">仮</span>
+      <span class="brand-name">{{ author_name }}</span>
+      <span class="brand-handle">{{ author_handle }}</span>
+    </div>
+    <div class="foot-center">{{ source_label }}</div>
+    <div class="foot-right">
+      <div>{{ as_of }}{% if meta_tag %} ・ {{ meta_tag }}{% endif %}</div>
+      <div class="disclaim">{{ disclaimer }}</div>
+    </div>
+  </footer>
+</div>
+</body>
+</html>
