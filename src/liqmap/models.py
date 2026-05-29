@@ -80,6 +80,7 @@ class LiquidationMap:
     source_label: str
     is_sample: bool = True
     source_note: str = ""  # shown next to the date (e.g. scan size) for live data
+    caption_comment: str = ""  # optional LLM-written one-liner for the social caption
     disclaimer: str = "※清算予測であり投資助言ではありません"
     title: str = "BTC清算予兆モニター"
     subtitle: str = "Hyperliquid Perps ／ 大口ポジション清算クラスター"

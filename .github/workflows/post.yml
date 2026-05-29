@@ -44,13 +44,16 @@ jobs:
           X_API_SECRET: ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.post }}" = "true" ]; then
             echo "::notice::LIVE run — will post to X"
-            python scripts/generate.py --source live --max-addresses 0 --post-x
+            python scripts/generate.py --source live --max-addresses 0 --llm --post-x
           else
             echo "::notice::DRY-RUN — render only, no posting"
-            python scripts/generate.py --source live --max-addresses 0
+            python scripts/generate.py --source live --max-addresses 0 --llm
           fi
 
       - name: Upload rendered image

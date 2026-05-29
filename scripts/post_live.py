@@ -30,6 +30,7 @@ def main() -> None:
     ap.add_argument("--snapshot", default="out/cache/snapshot_0_7.json")
     ap.add_argument("--out", default="out/liqmap_btc_live.png")
     ap.add_argument("--post-x", action="store_true")
+    ap.add_argument("--llm", action="store_true", help="LLM commentary (Gemini->OpenAI->Grok, template fallback)")
     args = ap.parse_args()
 
     d = json.loads(Path(args.snapshot).read_text(encoding="utf-8"))
@@ -37,7 +38,7 @@ def main() -> None:
     snap = Snapshot(**d)
     print(f"snapshot: scanned={snap.scanned:,}  btc_positions={snap.btc_count}  price=${snap.price:,.0f}  as_of={snap.as_of}")
 
-    m = build_liquidation_map(snap, fng=fetch_fear_greed())
+    m = build_liquidation_map(snap, fng=fetch_fear_greed(), use_llm=args.llm)
     path = render_png(m, args.out)
     cap = build_caption(m)
 

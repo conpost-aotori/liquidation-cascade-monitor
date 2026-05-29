@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 
+from .llm import generate_texts
 from .models import Band, KeyLevel, LiquidationMap, Scenario
 from .render import fmt_notional, fmt_price
 from .sources.hyperliquid import Snapshot
@@ -26,6 +27,7 @@ def build_liquidation_map(
     window_pct: float = 0.15,
     target_bands: int = 22,
     fng: dict | None = None,
+    use_llm: bool = False,
     author_name: str = "仮想NISHI",
     author_handle: str = "@Nishi8maru",
     source_label: str = "Hyperliquid Liquidation Cascade Monitor",
@@ -104,6 +106,45 @@ def build_liquidation_map(
     if not scenarios:
         scenarios.append(Scenario("様子見", "down", "現値付近に大きな清算クラスターは検出されていません。"))
 
+    # Optional LLM rephrasing of the prose (numbers stay deterministic). Falls back
+    # to the templates above if every provider fails.
+    caption_comment = ""
+    if use_llm:
+        facts = {
+            "現在値": round(price),
+            "Funding年率%": round(snap.funding * 24 * 365 * 100, 1),
+            "FearGreed": (fng.get("value") if fng else None),
+            "走査アドレス数": snap.scanned,
+            "BTC建玉数": snap.btc_count,
+            "主要レベル": [
+                {
+                    "価格": kl.price,
+                    "ラベル": kl.label,
+                    "想定額M": round(kl.notional / 1e6, 1),
+                    "サイド": "ロング" if kl.side == "long" else "ショート",
+                }
+                for kl in key_levels
+            ],
+        }
+        texts = generate_texts(facts)
+        if texts:
+            for s in scenarios:
+                if s.direction == "down":
+                    s.body = texts["down"]
+                elif s.direction == "up":
+                    s.body = texts["up"]
+            caption_comment = texts["caption"]
+            print(f"[llm] commentary via {texts.get('_provider')}")
+
+        # Quality floor: if the model returns generic filler (or nothing), use a
+        # deterministic, data-driven one-liner so the public caption is specific.
+        _filler = ("注視", "しましょう", "動向", "見守", "様子を見", "注目", "重要です")
+        if not caption_comment or len(caption_comment) < 8 or any(f in caption_comment for f in _filler):
+            if trigger:
+                caption_comment = f"{fmt_price(trigger.price)}割れで約{fmt_notional(trigger.long_notional)}のロング清算が点火しやすい水準。"
+            elif wall:
+                caption_comment = f"{fmt_price(wall.price)}突破で約{fmt_notional(wall.short_notional)}のショート踏み上げに警戒。"
+
     chips: list[str] = []
     if fng:
         chips.append(f"Fear & Greed {fng['value']}")
@@ -124,14 +165,44 @@ def build_liquidation_map(
         source_label=source_label,
         is_sample=False,
         source_note=f"{snap.scanned:,}アドレス走査・{snap.btc_count} BTC建玉",
+        caption_comment=caption_comment,
     )
 
 
+def _weighted(text: str) -> int:
+    return sum(2 if ord(c) >= 0x1100 else 1 for c in text)
+
+
+def _fit_weighted(text: str, budget: int) -> str:
+    if budget < 8:
+        return ""
+    if _weighted(text) <= budget:
+        return text
+    out, w = [], 0
+    for c in text:
+        cw = 2 if ord(c) >= 0x1100 else 1
+        if w + cw > budget - 1:
+            break
+        out.append(c)
+        w += cw
+    return "".join(out) + "…"
+
+
 def build_caption(m: LiquidationMap) -> str:
-    """Compact social caption kept within X's 280-weighted limit (CJK counts 2)."""
-    lines = [f"📊 BTC清算予兆モニター  {fmt_price(m.current_price)}", ""]
+    """Compact social caption kept within X's 280-weighted limit (CJK counts 2).
+
+    The optional LLM one-liner is trimmed to whatever budget is left AFTER the
+    fixed parts, so the disclaimer and hashtags are never the thing that gets cut.
+    """
+    head = [f"📊 BTC清算予兆モニター  {fmt_price(m.current_price)}", ""]
     for kl in m.key_levels[:3]:
         emoji = "🔴" if kl.side == "long" else "🟢"
-        lines.append(f"{emoji} {fmt_price(kl.price)} {kl.label} {fmt_notional(kl.notional)}")
-    lines += ["", "※清算予測・投資助言ではありません", "#BTC #Hyperliquid #清算"]
-    return "\n".join(lines)
+        head.append(f"{emoji} {fmt_price(kl.price)} {kl.label} {fmt_notional(kl.notional)}")
+    tail = ["", "※清算予測・投資助言ではありません", "#BTC #Hyperliquid #清算"]
+
+    comment: list[str] = []
+    if m.caption_comment:
+        fitted = _fit_weighted(m.caption_comment, 275 - _weighted("\n".join(head + [""] + tail)))
+        if fitted:
+            comment = ["", fitted]
+    return "\n".join(head + comment + tail)

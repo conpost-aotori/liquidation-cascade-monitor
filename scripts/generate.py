@@ -47,7 +47,7 @@ def build_map(args):
         concurrency=args.concurrency,
         refresh=args.refresh,
     )
-    return build_liquidation_map(snap, window_pct=args.window, fng=fetch_fear_greed())
+    return build_liquidation_map(snap, window_pct=args.window, fng=fetch_fear_greed(), use_llm=args.llm)
 
 
 def main() -> None:
@@ -57,6 +57,7 @@ def main() -> None:
     ap.add_argument("--concurrency", type=int, default=25)
     ap.add_argument("--window", type=float, default=0.15, help="live: price window +/- fraction (default 0.15)")
     ap.add_argument("--refresh", action="store_true", help="live: ignore cache and recrawl")
+    ap.add_argument("--llm", action="store_true", help="live: LLM commentary (Gemini->OpenAI->Grok, template fallback)")
     ap.add_argument("-o", "--out", default=None, help="output PNG path")
     ap.add_argument("--scale", type=int, default=2, help="device scale factor (default: 2)")
     ap.add_argument("--html", action="store_true", help="also dump the rendered HTML")
