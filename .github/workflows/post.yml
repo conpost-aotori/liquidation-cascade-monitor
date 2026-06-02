@@ -21,7 +21,7 @@ concurrency:
 
 env:
   # End of the temporary 3-hourly window (UTC). After this only 10/22 UTC post.
-  SPECIAL_WINDOW_END: "2026-06-02 15:00:00 UTC"
+  SPECIAL_WINDOW_END: "2026-06-03 12:00:00 UTC"
 
 jobs:
   post:
