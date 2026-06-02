@@ -1,48 +1,85 @@
 name: post-liquidation-map
 
-# Normal cadence: 12-hourly at 10:00 / 22:00 UTC (= 19:00 / 07:00 JST).
-# TEMPORARY (special exception): the schedule also fires every 3h. The "gate" step
-# below only lets the EXTRA slots post while now < SPECIAL_WINDOW_END; after that it
-# auto-reverts to the 12h slots (10/22 UTC) only. GitHub cron is UTC and may be
-# delayed/occasionally skipped under load.
+# Runs HOURLY, but a cheap gate decides whether to actually post. This makes the
+# cadence resilient to GitHub's skipped/delayed scheduled runs: if a slot's exact
+# trigger is skipped, a later hourly run catches up. State (was this slot already
+# posted?) is read from the X timeline itself, so there are no duplicates either.
+#   - Normal cadence: 12-hourly slots at 10:00 / 22:00 UTC (= 19:00 / 07:00 JST)
+#   - During SPECIAL_WINDOW: 3-hourly slots at 1,4,7,10,13,16,19,22 UTC
 on:
   schedule:
-    - cron: "0 1,4,7,10,13,16,19,22 * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
     inputs:
-      post:
-        description: "Post to X? (false = dry-run: render only, no tweet)"
-        type: boolean
-        default: false
+      mode:
+        description: "auto = slot gate (like schedule); force = post now; dry = render only"
+        type: choice
+        options: [auto, force, dry]
+        default: auto
 
 concurrency:
   group: post-liquidation-map
   cancel-in-progress: false
 
 env:
-  # End of the temporary 3-hourly window (UTC). After this only 10/22 UTC post.
-  SPECIAL_WINDOW_END: "2026-06-03 12:00:00 UTC"
+  SPECIAL_WINDOW_END: "2026-06-03 12:00:00 UTC" # 3-hourly until here, then 12-hourly
+  X_USER_ID: "2052021032933093377" # @Nishi8mAlert
 
 jobs:
   post:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - name: Schedule gate (3-hourly only during the special window)
+      - name: Slot gate (catch-up + dedupe via X timeline)
         id: gate
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
         run: |
-          if [ "${{ github.event_name }}" != "schedule" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          EV="${{ github.event_name }}"
+          MODE="${{ inputs.mode }}"
+          if [ "$EV" = "workflow_dispatch" ] && [ "$MODE" = "force" ]; then
+            echo "run=true"  >> "$GITHUB_OUTPUT"; echo "live=true"  >> "$GITHUB_OUTPUT"
+            echo "::notice::Manual force post."; exit 0
           fi
-          HOUR=$(date -u +%H)
+          if [ "$EV" = "workflow_dispatch" ] && [ "$MODE" = "dry" ]; then
+            echo "run=true"  >> "$GITHUB_OUTPUT"; echo "live=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Manual dry-run (render only)."; exit 0
+          fi
+
           NOW=$(date -u +%s)
-          END=$(date -u -d "${SPECIAL_WINDOW_END}" +%s)
-          if [ "$HOUR" = "10" ] || [ "$HOUR" = "22" ] || [ "$NOW" -lt "$END" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Posting slot (hour=$HOUR UTC)."
+          END=$(date -u -d "$SPECIAL_WINDOW_END" +%s)
+          if [ "$NOW" -lt "$END" ]; then SLOTS="1 4 7 10 13 16 19 22"; else SLOTS="10 22"; fi
+          HOUR=$(date -u +%H | sed 's/^0//'); [ -z "$HOUR" ] && HOUR=0
+
+          # Most recent slot boundary <= now (search today + yesterday).
+          TODAY=$(date -u +%F); YEST=$(date -u -d 'yesterday' +%F); SLOT=0
+          for H in $SLOTS; do for D in "$TODAY" "$YEST"; do
+            TS=$(date -u -d "$D ${H}:00:00 UTC" +%s)
+            if [ "$TS" -le "$NOW" ] && [ "$TS" -gt "$SLOT" ]; then SLOT=$TS; fi
+          done; done
+          echo "Slots: [$SLOTS]  current slot start: $(date -u -d @$SLOT)"
+
+          # Read last liquidation-map post time from the timeline (state store).
+          BEARER=$(curl -s -u "$X_API_KEY:$X_API_SECRET" -d grant_type=client_credentials \
+            https://api.twitter.com/oauth2/token | jq -r '.access_token // empty')
+          if [ -z "$BEARER" ]; then
+            echo "::warning::Bearer fetch failed; falling back to exact-slot trigger."
+            for H in $SLOTS; do [ "$H" = "$HOUR" ] && { echo "run=true">>"$GITHUB_OUTPUT"; echo "live=true">>"$GITHUB_OUTPUT"; exit 0; }; done
+            echo "run=false">>"$GITHUB_OUTPUT"; echo "live=false">>"$GITHUB_OUTPUT"; exit 0
+          fi
+          LAST=$(curl -s -H "Authorization: Bearer $BEARER" \
+            "https://api.twitter.com/2/users/${X_USER_ID}/tweets?max_results=100&tweet.fields=created_at" \
+            | jq -r '[.data[]? | select((.text|contains("清算予兆")) or (.text|contains("清算カスケード"))) | .created_at] | max // "1970-01-01T00:00:00Z"')
+          LAST_TS=$(date -u -d "$LAST" +%s 2>/dev/null || echo 0)
+          echo "Last liquidation-map post: $LAST"
+
+          if [ "$LAST_TS" -lt "$SLOT" ]; then
+            echo "run=true"  >> "$GITHUB_OUTPUT"; echo "live=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::No post yet for this slot -> POST (catch-up safe)."
           else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Outside 3-hourly window and not a 12h slot (hour=$HOUR) — skipping."
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "live=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Slot already covered -> skip."
           fi
 
       - uses: actions/checkout@v4
@@ -65,7 +102,7 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
 
-      - name: Crawl + render (+ post on schedule)
+      - name: Crawl + render (+ post unless dry)
         if: steps.gate.outputs.run == 'true'
         env:
           PYTHONUTF8: "1"
@@ -77,13 +114,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.post }}" = "true" ]; then
-            echo "::notice::LIVE run — will post to X"
-            python scripts/generate.py --source live --max-addresses 0 --llm --post-x
-          else
-            echo "::notice::DRY-RUN — render only, no posting"
-            python scripts/generate.py --source live --max-addresses 0 --llm
-          fi
+          EXTRA=""
+          if [ "${{ steps.gate.outputs.live }}" = "true" ]; then EXTRA="--post-x"; echo "::notice::LIVE post"; else echo "::notice::DRY-RUN (no post)"; fi
+          python scripts/generate.py --source live --max-addresses 0 --llm $EXTRA
 
       - name: Upload rendered image
         if: always() && steps.gate.outputs.run == 'true'
