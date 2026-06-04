@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SPECIAL_WINDOW_END: "2026-06-03 12:00:00 UTC" # 3-hourly until here, then 12-hourly
+  SPECIAL_WINDOW_END: "2026-06-05 02:00:00 UTC" # 3-hourly until here, then 12-hourly
   X_USER_ID: "2052021032933093377" # @Nishi8mAlert
 
 jobs:
