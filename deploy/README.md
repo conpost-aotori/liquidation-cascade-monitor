@@ -17,10 +17,14 @@ sudo useradd -r -m -d /srv/liquidation-cascade-monitor -s /bin/bash liqmap
 sudo -u liqmap git clone https://github.com/VirtualNISHI/liquidation-cascade-monitor /srv/liquidation-cascade-monitor
 cd /srv/liquidation-cascade-monitor
 
-# venv + deps
-sudo -u liqmap python3.12 -m venv .venv
+# venv + deps  (server has Python 3.10; 3.10+ is fine)
+sudo -u liqmap python3 -m venv .venv
 sudo -u liqmap .venv/bin/pip install -r requirements.txt
-sudo -u liqmap .venv/bin/python -m playwright install --with-deps chromium
+sudo .venv/bin/python -m playwright install-deps chromium       # system libs (needs root)
+sudo -u liqmap .venv/bin/python -m playwright install chromium  # browser (as the bot user)
+
+# log/output dirs — systemd `append:` needs data/ to already exist
+sudo -u liqmap mkdir -p data out
 
 # Japanese font for rendering (if not already present)
 sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
