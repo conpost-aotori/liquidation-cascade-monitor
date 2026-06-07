@@ -123,7 +123,7 @@ jobs:
         run: |
           EXTRA=""
           if [ "${{ steps.gate.outputs.live }}" = "true" ]; then EXTRA="--post-x"; echo "::notice::LIVE post"; else echo "::notice::DRY-RUN (no post)"; fi
-          python scripts/generate.py --source live --max-addresses 15000 --llm $EXTRA
+          python scripts/generate.py --source live --max-addresses 0 --llm $EXTRA
 
       - name: Upload rendered image
         if: always() && steps.gate.outputs.run == 'true'
