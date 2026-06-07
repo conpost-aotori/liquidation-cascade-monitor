@@ -49,6 +49,7 @@ class Snapshot:
     positions: list[Position]
     scanned: int
     as_of: str  # ISO-ish UTC string
+    price_24h_ago: float = 0.0  # Hyperliquid prevDayPx (for bias OI/price-direction term)
 
     @property
     def btc_count(self) -> int:
@@ -83,6 +84,7 @@ def fetch_market(client: httpx.Client) -> dict:
     return {
         "mark": float(ctx["markPx"]),
         "oracle": float(ctx.get("oraclePx", ctx["markPx"])),
+        "prev_day": float(ctx.get("prevDayPx", ctx["markPx"])),
         "open_interest": float(ctx.get("openInterest", 0)),
         "funding": float(ctx.get("funding", 0)),
     }
@@ -186,6 +188,7 @@ def fetch_snapshot(*, max_addresses: int = 0, concurrency: int = 25, refresh: bo
         positions=positions,
         scanned=total,
         as_of=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        price_24h_ago=market["prev_day"],
     )
     out = asdict(snap)
     cache.write_text(json.dumps(out), encoding="utf-8")

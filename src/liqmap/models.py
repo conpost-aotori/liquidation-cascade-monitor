@@ -81,6 +81,14 @@ class LiquidationMap:
     is_sample: bool = True
     source_note: str = ""  # shown next to the date (e.g. scan size) for live data
     caption_comment: str = ""  # optional LLM-written one-liner for the social caption
+    # 偏りスコア (bias score) — see liqmap.bias / SPEC.md
+    bias_score: int = 0
+    bias_state: str = ""  # 発火 / 監視 / 静観
+    bias_side: str = "neutral"  # long / short / neutral
+    bias_label: str = ""  # verdict text shown next to the score
+    bias_components: dict = field(default_factory=dict)
+    bias_available: dict = field(default_factory=dict)
+    bias_gate: dict = field(default_factory=dict)
     disclaimer: str = "※清算予測であり投資助言ではありません"
     title: str = "BTC清算予兆モニター"
     subtitle: str = "Hyperliquid Perps ／ 大口ポジション清算クラスター"

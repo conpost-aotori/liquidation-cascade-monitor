@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 
+from .bias import WATCH_SCORE, Inputs, evaluate
 from .llm import generate_texts
 from .models import Band, KeyLevel, LiquidationMap, Scenario
 from .render import fmt_notional, fmt_price
@@ -151,6 +152,36 @@ def build_liquidation_map(
     chips.append(f"Funding {snap.funding * 24 * 365 * 100:+.1f}%/yr")
     chips.append(f"OI {fmt_notional(snap.open_interest * price)}")
 
+    # ----- 偏りスコア (bias score; see liqmap.bias / SPEC.md) -----
+    long_total = sum(p.notional for p in snap.positions if p.side == "long" and p.liq_px < price)
+    short_total = sum(p.notional for p in snap.positions if p.side == "short" and p.liq_px > price)
+    cluster_list: list[tuple[float, str, float]] = []
+    for b in bands:
+        if b.long_notional > 0:
+            cluster_list.append((b.price, "long", b.long_notional))
+        if b.short_notional > 0:
+            cluster_list.append((b.price, "short", b.short_notional))
+    bias = evaluate(
+        Inputs(
+            price=price,
+            price_24h_ago=snap.price_24h_ago or price,
+            funding_8h=snap.funding * 8,  # HL funding is hourly -> 8h
+            oi_now=snap.open_interest,
+            oi_24h_ago=None,  # TODO: needs an OI time-series store (SPEC §6)
+            long_cluster_total=long_total,
+            short_cluster_total=short_total,
+            clusters=cluster_list,
+            smart_money_net=None,  # TODO: Nansen (SPEC §6)
+        )
+    )
+    _bscore, _bside = bias["score"], bias["side"]
+    if _bside == "neutral":
+        bias_label = "偏りは中立"
+    elif abs(_bscore) >= WATCH_SCORE:
+        bias_label = "ロング過熱・下落カスケード警戒" if _bside == "long" else "ショート過熱・上踏み警戒"
+    else:
+        bias_label = "ややロング偏り" if _bside == "long" else "ややショート偏り"
+
     return LiquidationMap(
         asset="BTC",
         quote="USD",
@@ -166,6 +197,13 @@ def build_liquidation_map(
         is_sample=False,
         source_note=f"{snap.scanned:,}アドレス走査・{snap.btc_count} BTC建玉",
         caption_comment=caption_comment,
+        bias_score=bias["score"],
+        bias_state=bias["state"],
+        bias_side=bias["side"],
+        bias_label=bias_label,
+        bias_components=bias["components"],
+        bias_available=bias["available"],
+        bias_gate=bias["gate"],
     )
 
 

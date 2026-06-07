@@ -155,7 +155,32 @@ def build_context(m: LiquidationMap) -> dict:
         for kl in m.key_levels
     ]
 
+    # ----- 偏りスコア (bias) widget context -----
+    _comp_labels = {"funding": "FR", "oi": "OI", "skew": "偏り", "smart": "SM"}
+    bias_components = []
+    for key in ("funding", "oi", "skew", "smart"):
+        avail = m.bias_available.get(key, False)
+        val = m.bias_components.get(key, 0.0)
+        bias_components.append(
+            {"label": _comp_labels[key], "text": f"{val:+.0f}" if avail else "—", "available": avail}
+        )
+    g = m.bias_gate or {}
+    bias_ctx = {
+        "score": f"{m.bias_score:+d}",
+        "state": m.bias_state,
+        "state_class": {"発火": "fire", "監視": "watch", "静観": "calm"}.get(m.bias_state, "calm"),
+        "side": m.bias_side,
+        "label": m.bias_label,
+        "gauge_pct": round(max(0.0, min(100.0, (m.bias_score + 100) / 2.0)), 1),
+        "components": bias_components,
+        "trigger_px": fmt_price(g["trigger_px"]) if g.get("trigger_px") else None,
+        "trigger_dist": f"{g['dist'] * 100:.1f}%" if g.get("dist") is not None else None,
+        "trigger_notional": fmt_notional(g["notional"]) if g.get("notional") else None,
+        "gate_open": bool(g.get("open")),
+    }
+
     return {
+        "bias": bias_ctx,
         "title": m.title,
         "subtitle": m.subtitle,
         "asset": m.asset,
