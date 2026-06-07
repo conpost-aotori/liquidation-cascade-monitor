@@ -176,11 +176,11 @@ def build_liquidation_map(
     )
     _bscore, _bside = bias["score"], bias["side"]
     if _bside == "neutral":
-        bias_label = "偏りは中立"
+        bias_label = "中立"
     elif abs(_bscore) >= WATCH_SCORE:
         bias_label = "ロング過熱・下落カスケード警戒" if _bside == "long" else "ショート過熱・上踏み警戒"
     else:
-        bias_label = "ややロング偏り" if _bside == "long" else "ややショート偏り"
+        bias_label = "中立〜やや下値リスク優勢" if _bside == "long" else "中立〜やや上値リスク優勢"
 
     return LiquidationMap(
         asset="BTC",

@@ -118,32 +118,28 @@
   .lv-not.short { color: var(--grn-soft); }
 
   .bias { margin-top: auto; padding-top: 16px; }
-  .bias-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .bias-title { font-size: 14px; color: var(--sec); letter-spacing: .3px; }
-  .bias-state { font-size: 12.5px; font-weight: 700; padding: 3px 12px; border-radius: 999px; }
-  .st-fire { color: #fff; background: linear-gradient(135deg, #ff4d6d, #c81e3c); box-shadow: 0 0 12px rgba(255,77,109,.5); }
-  .st-watch { color: var(--amber); background: rgba(245,181,61,.14); border: 1px solid rgba(245,181,61,.4); }
-  .st-calm { color: var(--sec); background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1); }
-  .bias-row { display: flex; align-items: baseline; gap: 12px; }
+  .bias-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .bias-title { font-size: 15px; font-weight: 700; color: var(--txt); }
+  .bias-sub { font-size: 12.5px; color: var(--mut); }
+  .bias-gauge { position: relative; height: 8px; border-radius: 999px;
+    background: linear-gradient(90deg, #ff4d6d 0%, #6b7688 50%, #33e09b 100%); }
+  .bias-marker { position: absolute; top: 50%; width: 4px; height: 18px; border-radius: 2px;
+    background: #fff; transform: translate(-50%, -50%); box-shadow: 0 0 6px rgba(0,0,0,.65); }
+  .bias-ends { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-top: 8px; }
+  .bias-ends .long { color: var(--red-soft); }
+  .bias-ends .short { color: var(--grn-soft); }
+  .bias-row { display: flex; align-items: baseline; gap: 6px; margin-top: 12px; }
   .bias-score { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
   .bias-score.long { color: var(--red); }
   .bias-score.short { color: var(--grn); }
   .bias-score.neutral { color: var(--sec); }
-  .bias-verdict { font-size: 13.5px; font-weight: 600; }
+  .bias-max { font-size: 15px; color: var(--mut); margin-right: 10px; }
+  .bias-verdict { font-size: 14px; font-weight: 600; }
   .bias-verdict.long { color: var(--red-soft); }
   .bias-verdict.short { color: var(--grn-soft); }
   .bias-verdict.neutral { color: var(--sec); }
-  .bias-gauge { position: relative; height: 8px; border-radius: 999px; margin-top: 14px;
-    background: linear-gradient(90deg, #ff4d6d 0%, #6b7688 50%, #33e09b 100%); }
-  .bias-marker { position: absolute; top: 50%; width: 4px; height: 18px; border-radius: 2px;
-    background: #fff; transform: translate(-50%, -50%); box-shadow: 0 0 6px rgba(0,0,0,.65); }
-  .bias-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--mut); margin-top: 6px; }
-  .bias-comps { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
-  .bias-comp { font-size: 12px; color: #c2ccdb; background: rgba(255,255,255,.05);
-    border: 1px solid rgba(255,255,255,.08); border-radius: 6px; padding: 4px 9px; font-variant-numeric: tabular-nums; }
-  .bias-comp.na { color: var(--mut); opacity: .6; }
-  .bias-trigger { font-size: 12px; color: var(--sec); margin-top: 10px; }
-  .bias-trigger.open { color: var(--amber); font-weight: 600; }
+  .bias-note { font-size: 12px; color: var(--sec); margin-top: 8px; }
+  .bias-note.muted { color: var(--mut); }
 
   /* ---- footer ---- */
   footer { display: flex; justify-content: space-between; align-items: center;
@@ -241,22 +237,16 @@
       <div class="bias">
         <div class="bias-head">
           <span class="bias-title">偏りスコア</span>
-          <span class="bias-state st-{{ bias.state_class }}">{{ bias.state }}</span>
+          <span class="bias-sub">踏まれやすい側</span>
         </div>
+        <div class="bias-gauge"><div class="bias-marker" style="left:{{ bias.gauge_pct }}%"></div></div>
+        <div class="bias-ends"><span class="long">ロング過熱・下</span><span class="short">ショート過熱・上</span></div>
         <div class="bias-row">
-          <span class="bias-score {{ bias.side }}">{{ bias.score }}</span>
+          <span class="bias-score {{ bias.side }}">{{ bias.score }}</span><span class="bias-max">/100</span>
           <span class="bias-verdict {{ bias.side }}">{{ bias.label }}</span>
         </div>
-        <div class="bias-gauge">
-          <div class="bias-marker" style="left:{{ bias.gauge_pct }}%"></div>
-        </div>
-        <div class="bias-scale"><span>ロング過密</span><span>0</span><span>ショート過密</span></div>
-        <div class="bias-comps">
-          {% for c in bias.components %}<span class="bias-comp{% if not c.available %} na{% endif %}">{{ c.label }} {{ c.text }}</span>{% endfor %}
-        </div>
-        {% if bias.trigger_px %}
-        <div class="bias-trigger {% if bias.gate_open %}open{% endif %}">引き金 {{ bias.trigger_px }} ・ {{ bias.trigger_dist }} ・ {{ bias.trigger_notional }}{% if bias.gate_open %} ⚡近接{% else %} ・遠い{% endif %}</div>
-        {% endif %}
+        <div class="bias-note">閾値 ±{{ bias.fire_threshold }} で発火 → 現在は{{ bias.state }}</div>
+        {% if bias.unavailable %}<div class="bias-note muted">未反映: {{ bias.unavailable }}</div>{% endif %}
       </div>
     </aside>
   </main>

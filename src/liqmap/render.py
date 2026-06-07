@@ -14,6 +14,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .bias import FIRE_SCORE
 from .models import LiquidationMap
 
 WIDTH = 1600
@@ -156,27 +157,16 @@ def build_context(m: LiquidationMap) -> dict:
     ]
 
     # ----- 偏りスコア (bias) widget context -----
-    _comp_labels = {"funding": "FR", "oi": "OI", "skew": "偏り", "smart": "SM"}
-    bias_components = []
-    for key in ("funding", "oi", "skew", "smart"):
-        avail = m.bias_available.get(key, False)
-        val = m.bias_components.get(key, 0.0)
-        bias_components.append(
-            {"label": _comp_labels[key], "text": f"{val:+.0f}" if avail else "—", "available": avail}
-        )
-    g = m.bias_gate or {}
+    _names = {"funding": "ファンディング", "oi": "OI速度", "skew": "クラスター偏り", "smart": "スマートマネー"}
+    unavailable = [_names[k] for k in ("funding", "oi", "skew", "smart") if not m.bias_available.get(k, False)]
     bias_ctx = {
         "score": f"{m.bias_score:+d}",
-        "state": m.bias_state,
-        "state_class": {"発火": "fire", "監視": "watch", "静観": "calm"}.get(m.bias_state, "calm"),
-        "side": m.bias_side,
+        "state": m.bias_state or "静観",
+        "side": m.bias_side or "neutral",
         "label": m.bias_label,
         "gauge_pct": round(max(0.0, min(100.0, (m.bias_score + 100) / 2.0)), 1),
-        "components": bias_components,
-        "trigger_px": fmt_price(g["trigger_px"]) if g.get("trigger_px") else None,
-        "trigger_dist": f"{g['dist'] * 100:.1f}%" if g.get("dist") is not None else None,
-        "trigger_notional": fmt_notional(g["notional"]) if g.get("notional") else None,
-        "gate_open": bool(g.get("open")),
+        "fire_threshold": FIRE_SCORE,
+        "unavailable": "・".join(unavailable),
     }
 
     return {
