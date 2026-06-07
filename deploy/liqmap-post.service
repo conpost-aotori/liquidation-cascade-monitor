@@ -1,0 +1,20 @@
+[Unit]
+Description=BTC liquidation-cascade monitor — crawl + render + post to X
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=liqmap
+WorkingDirectory=/srv/liquidation-cascade-monitor
+EnvironmentFile=/srv/liquidation-cascade-monitor/.env
+Environment=PYTHONUTF8=1
+ExecStart=/srv/liquidation-cascade-monitor/.venv/bin/python scripts/run.py
+StandardOutput=append:/srv/liquidation-cascade-monitor/data/post.log
+StandardError=append:/srv/liquidation-cascade-monitor/data/post.log
+# Full 37.5k-address crawl takes ~16 min; allow headroom.
+TimeoutStartSec=1800
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

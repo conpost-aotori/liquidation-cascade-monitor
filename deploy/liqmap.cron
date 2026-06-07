@@ -1,0 +1,10 @@
+# BTC liquidation-cascade monitor — VPS cron (alternative to the systemd timer)
+#
+# Install:  crontab /srv/liquidation-cascade-monitor/deploy/liqmap.cron
+# The .venv must already exist (see deploy/README.md).
+
+PROJECT_DIR=/srv/liquidation-cascade-monitor
+PYTHON=/srv/liquidation-cascade-monitor/.venv/bin/python
+
+# 4-hourly post (UTC 03,07,11,15,19,23 = JST 12,16,20,0,4,8)
+0 3,7,11,15,19,23 * * * cd $PROJECT_DIR && PYTHONUTF8=1 $PYTHON scripts/run.py >> $PROJECT_DIR/data/post.log 2>&1
