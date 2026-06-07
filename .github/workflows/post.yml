@@ -4,8 +4,8 @@ name: post-liquidation-map
 # cadence resilient to GitHub's skipped/delayed scheduled runs: if a slot's exact
 # trigger is skipped, a later hourly run catches up. State (was this slot already
 # posted?) is read from the X timeline itself, so there are no duplicates either.
-#   - Normal cadence: 12-hourly slots at 10:00 / 22:00 UTC (= 19:00 / 07:00 JST)
-#   - During SPECIAL_WINDOW: 3-hourly slots at 1,4,7,10,13,16,19,22 UTC
+#   - Normal cadence: 4-hourly slots at 3,7,11,15,19,23 UTC (= JST 12,16,20,0,4,8) — 6/day
+#   - During SPECIAL_WINDOW: 3-hourly slots at 1,4,7,10,13,16,19,22 UTC — 8/day
 on:
   schedule:
     - cron: "0 * * * *"
@@ -49,7 +49,7 @@ jobs:
 
           NOW=$(date -u +%s)
           END=$(date -u -d "$SPECIAL_WINDOW_END" +%s)
-          if [ "$NOW" -lt "$END" ]; then SLOTS="1 4 7 10 13 16 19 22"; else SLOTS="10 22"; fi
+          if [ "$NOW" -lt "$END" ]; then SLOTS="1 4 7 10 13 16 19 22"; else SLOTS="3 7 11 15 19 23"; fi
           HOUR=$(date -u +%H | sed 's/^0//'); [ -z "$HOUR" ] && HOUR=0
 
           # Most recent slot boundary <= now (search today + yesterday).
@@ -91,6 +91,13 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Cache Playwright browser
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}
+
       - name: Install Japanese fonts (render fallback)
         if: steps.gate.outputs.run == 'true'
         run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
@@ -116,7 +123,7 @@ jobs:
         run: |
           EXTRA=""
           if [ "${{ steps.gate.outputs.live }}" = "true" ]; then EXTRA="--post-x"; echo "::notice::LIVE post"; else echo "::notice::DRY-RUN (no post)"; fi
-          python scripts/generate.py --source live --max-addresses 0 --llm $EXTRA
+          python scripts/generate.py --source live --max-addresses 15000 --llm $EXTRA
 
       - name: Upload rendered image
         if: always() && steps.gate.outputs.run == 'true'
