@@ -29,6 +29,7 @@ def build_liquidation_map(
     target_bands: int = 22,
     fng: dict | None = None,
     use_llm: bool = False,
+    oi_24h_ago: float | None = None,
     author_name: str = "仮想NISHI",
     author_handle: str = "@Nishi8maru",
     source_label: str = "Hyperliquid Liquidation Cascade Monitor",
@@ -167,11 +168,11 @@ def build_liquidation_map(
             price_24h_ago=snap.price_24h_ago or price,
             funding_8h=snap.funding * 8,  # HL funding is hourly -> 8h
             oi_now=snap.open_interest,
-            oi_24h_ago=None,  # TODO: needs an OI time-series store (SPEC §6)
+            oi_24h_ago=oi_24h_ago,  # from liqmap.oistore (None until ~24h history)
             long_cluster_total=long_total,
             short_cluster_total=short_total,
             clusters=cluster_list,
-            smart_money_net=None,  # TODO: Nansen (SPEC §6)
+            smart_money_net=snap.smart_money_net,  # HL winners' BTC net
         )
     )
     _bscore, _bside = bias["score"], bias["side"]

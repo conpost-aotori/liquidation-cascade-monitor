@@ -50,6 +50,7 @@ class Snapshot:
     scanned: int
     as_of: str  # ISO-ish UTC string
     price_24h_ago: float = 0.0  # Hyperliquid prevDayPx (for bias OI/price-direction term)
+    smart_money_net: float | None = None  # winners' BTC net (long-short)/(long+short), [-1,1]
 
     @property
     def btc_count(self) -> int:
@@ -90,17 +91,25 @@ def fetch_market(client: httpx.Client) -> dict:
     }
 
 
-def fetch_leaderboard_addresses(client: httpx.Client, *, refresh: bool = False,
-                                cache_ttl: int = 86_400) -> list[str]:
+def fetch_leaderboard_rows(client: httpx.Client, *, refresh: bool = False,
+                           cache_ttl: int = 86_400) -> list[list]:
+    """Return [[ethAddress, allTimePnl], ...] — address universe + winner ranking."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    cache = CACHE_DIR / "leaderboard_addrs.json"
+    cache = CACHE_DIR / "leaderboard_rows.json"
     if cache.exists() and not refresh and time.time() - cache.stat().st_mtime < cache_ttl:
         return json.loads(cache.read_text(encoding="utf-8"))
     r = client.get(LEADERBOARD_URL, headers={"User-Agent": "liqmap/1.0"}, timeout=120)
     r.raise_for_status()
-    addrs = [row["ethAddress"] for row in r.json()["leaderboardRows"]]
-    cache.write_text(json.dumps(addrs), encoding="utf-8")
-    return addrs
+    rows = []
+    for row in r.json()["leaderboardRows"]:
+        perf = dict(row.get("windowPerformances") or [])
+        try:
+            pnl = float((perf.get("allTime") or {}).get("pnl", 0) or 0)
+        except Exception:
+            pnl = 0.0
+        rows.append([row["ethAddress"], pnl])
+    cache.write_text(json.dumps(rows), encoding="utf-8")
+    return rows
 
 
 def _extract_btc(address: str, state: dict) -> Position | None:
@@ -145,15 +154,20 @@ def fetch_snapshot(*, max_addresses: int = 0, concurrency: int = 25, refresh: bo
     limits = httpx.Limits(max_connections=concurrency + 5, max_keepalive_connections=concurrency)
     with httpx.Client(timeout=30, limits=limits, headers={"Content-Type": "application/json"}) as client:
         market = fetch_market(client)
-        addrs = fetch_leaderboard_addresses(client, refresh=refresh)
+        rows = fetch_leaderboard_rows(client, refresh=refresh)
+        # "Winners" = top 20% by all-time PnL (HL-native smart-money proxy for bias C4).
+        ranked = sorted(rows, key=lambda r: r[1], reverse=True)
+        winners = {a for a, _ in ranked[: max(1, len(ranked) // 5)]}
+        addrs = [a for a, _ in rows]
         if max_addresses and max_addresses < len(addrs):
             random.seed(seed)
             addrs = random.sample(addrs, max_addresses)
         total = len(addrs)
         if verbose:
-            print(f"[crawl] scanning {total:,} addresses @ conc={concurrency} ...")
+            print(f"[crawl] scanning {total:,} addresses @ conc={concurrency} ({len(winners):,} winners) ...")
 
         positions: list[Position] = []
+        smart = {"long": 0.0, "short": 0.0}  # winners' BTC notional by side
         errors = 0
         done = 0
         lock = threading.Lock()
@@ -172,6 +186,8 @@ def fetch_snapshot(*, max_addresses: int = 0, concurrency: int = 25, refresh: bo
                 done += 1
                 if pos:
                     positions.append(pos)
+                    if a in winners:
+                        smart[pos.side] += pos.notional
                 if verbose and done % 2000 == 0:
                     rate = done / max(time.time() - t0, 1e-6)
                     print(f"  {done:,}/{total:,} ({rate:.0f}/s) - {len(positions)} BTC positions, {errors} errs")
@@ -179,6 +195,9 @@ def fetch_snapshot(*, max_addresses: int = 0, concurrency: int = 25, refresh: bo
 
         with ThreadPoolExecutor(max_workers=concurrency) as ex:
             list(ex.map(work, addrs))
+
+        _wtot = smart["long"] + smart["short"]
+        smart_money_net = (smart["long"] - smart["short"]) / _wtot if _wtot > 0 else None
 
     snap = Snapshot(
         price=market["mark"],
@@ -189,6 +208,7 @@ def fetch_snapshot(*, max_addresses: int = 0, concurrency: int = 25, refresh: bo
         scanned=total,
         as_of=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         price_24h_ago=market["prev_day"],
+        smart_money_net=smart_money_net,
     )
     out = asdict(snap)
     cache.write_text(json.dumps(out), encoding="utf-8")

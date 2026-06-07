@@ -109,6 +109,14 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
 
+      - name: Restore OI history (bias C2)
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: out/cache/oi_history.json
+          key: oi-history-${{ github.run_id }}
+          restore-keys: oi-history-
+
       - name: Crawl + render (+ post unless dry)
         if: steps.gate.outputs.run == 'true'
         env:
@@ -124,6 +132,13 @@ jobs:
           EXTRA=""
           if [ "${{ steps.gate.outputs.live }}" = "true" ]; then EXTRA="--post-x"; echo "::notice::LIVE post"; else echo "::notice::DRY-RUN (no post)"; fi
           python scripts/generate.py --source live --max-addresses 0 --llm $EXTRA
+
+      - name: Save OI history (bias C2)
+        if: always() && steps.gate.outputs.run == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: out/cache/oi_history.json
+          key: oi-history-${{ github.run_id }}
 
       - name: Upload rendered image
         if: always() && steps.gate.outputs.run == 'true'

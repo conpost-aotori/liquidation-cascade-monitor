@@ -55,11 +55,11 @@ bot が X に投稿するのは発火のときだけ(本リポでは現状その
 | `funding_8h` | HL `metaAndAssetCtxs` → assetCtx.`funding`(毎時×8) | ✅ 実装済 |
 | `price` / `price_24h_ago` | `markPx` / `prevDayPx` | ✅ 実装済 |
 | `oi_now` | assetCtx.`openInterest`(BTC建て) | ✅ 実装済 |
-| `oi_24h_ago` | 自前ストア(毎時スナップショット保存) | ⏳ 未実装 → C2=0 |
+| `oi_24h_ago` | `src/liqmap/oistore.py` + GitHub Actions キャッシュ | ✅ 実装（約24hで有効化・コールドスタート） |
 | `clusters`, `*_total` | 既存の清算推定パイプライン | ✅ 実装済 |
-| `smart_money_net` | Nansen(REST APIキー必要) | ⏳ 未実装 → C4=0 |
+| `smart_money_net` | HL勝ち組(allTime PnL上位20%)のBTCネット | ✅ 実装（HLネイティブ代理。Nansen不要） |
 
-> 現状の自動bot(GitHub Actions)では C2(OI速度)と C4(スマートマネー)が未取得のため、スコアは **C1(ファンディング)+C3(クラスター偏り)** の部分計算。パネルでは未取得要素を「—」で明示。残り40%を埋めると符号が深まる。
+> 自動bot(GitHub Actions)は **C1+C3+C4 をライブ算出**（C4=HL勝ち組ベースの代理指標）。**C2(OI速度)はOI時系列ストア**（毎回OIを保存・Actionsキャッシュで永続化）で、約24hぶん貯まると有効化（それまでパネルの「未反映」に表示）。Nansenを使う場合は C4 を差し替え可能。
 
 ## 7. 発火時の出力(X ポスト テンプレート)
 方向ラベル(score>0→ショート過熱/上踏み、score<0→ロング過熱/下落カスケード)、偏りスコア、各要素内訳、引き金価格を明示。

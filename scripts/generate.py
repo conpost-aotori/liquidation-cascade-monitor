@@ -39,6 +39,7 @@ def build_map(args):
         return sample_map()
 
     from liqmap.clusters import build_liquidation_map
+    from liqmap.oistore import update_and_get_24h
     from liqmap.sources.hyperliquid import fetch_snapshot
     from liqmap.sources.sentiment import fetch_fear_greed
 
@@ -47,7 +48,10 @@ def build_map(args):
         concurrency=args.concurrency,
         refresh=args.refresh,
     )
-    return build_liquidation_map(snap, window_pct=args.window, fng=fetch_fear_greed(), use_llm=args.llm)
+    oi_24h = update_and_get_24h(snap.open_interest)  # bias C2 (None until ~24h history)
+    return build_liquidation_map(
+        snap, window_pct=args.window, fng=fetch_fear_greed(), use_llm=args.llm, oi_24h_ago=oi_24h
+    )
 
 
 def main() -> None:
