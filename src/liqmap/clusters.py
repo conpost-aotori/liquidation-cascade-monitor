@@ -9,11 +9,17 @@ from __future__ import annotations
 
 import math
 
+from pathlib import Path
+
 from .bias import WATCH_SCORE, Inputs, evaluate
+from .biaslog import append_bias
 from .llm import generate_texts
 from .models import Band, KeyLevel, LiquidationMap, Scenario
 from .render import fmt_notional, fmt_price
 from .sources.hyperliquid import Snapshot
+
+# Where the forward-only bias time series is appended (see biaslog.py).
+_BIAS_LOG_DIR = Path(__file__).resolve().parents[2] / "out"
 
 _NICE_BANDS = [50, 100, 250, 500, 1000, 2000, 2500, 5000, 10000]
 
@@ -175,6 +181,17 @@ def build_liquidation_map(
             smart_money_net=snap.smart_money_net,  # HL winners' BTC net
         )
     )
+    # Persist the bias observation to the forward-only JSONL time series.
+    # Defensive (never raises) and independent of any X/Discord posting.
+    append_bias(
+        _BIAS_LOG_DIR,
+        as_of=snap.as_of,
+        price=price,
+        bias=bias,
+        scanned=getattr(snap, "scanned", None),
+        btc_count=getattr(snap, "btc_count", None),
+    )
+
     _bscore, _bside = bias["score"], bias["side"]
     if _bside == "neutral":
         bias_label = "中立"
