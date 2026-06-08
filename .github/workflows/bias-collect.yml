@@ -1,0 +1,71 @@
+name: bias-collect
+
+# Forward-only bias time series collector. Crawls Hyperliquid and appends the
+# bias score to out/bias_log.jsonl, then commits it back. NO render, NO X /
+# Discord posting, NO secrets — fully decoupled from post.yml's X pipeline.
+# Exists so a downstream consumer (hl-swing-bot) can accumulate the bias as a
+# research feature without the X-posting bot needing to be enabled.
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"   # every 4h (0,4,8,12,16,20 UTC)
+  workflow_dispatch:
+    inputs:
+      max_addresses:
+        description: "leaderboard addresses to scan (4000 ~3min, 0=full ~28min)"
+        default: "4000"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bias-collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies (no playwright browser — we don't render)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore OI history (bias C2 term)
+        uses: actions/cache/restore@v4
+        with:
+          path: out/cache/oi_history.json
+          key: bias-oi-history-${{ github.run_id }}
+          restore-keys: bias-oi-history-
+
+      - name: Crawl + persist bias (no render, no post)
+        run: |
+          python scripts/collect_bias.py --max-addresses "${{ inputs.max_addresses || '4000' }}"
+
+      - name: Save OI history (bias C2 term)
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: out/cache/oi_history.json
+          key: bias-oi-history-${{ github.run_id }}
+
+      - name: Commit bias log
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f out/bias_log.jsonl ] && [ -n "$(git status --porcelain out/bias_log.jsonl)" ]; then
+            git add out/bias_log.jsonl
+            git commit -m "chore: bias observation [skip ci]"
+            git push || (git pull --rebase --autostash && git push)
+          else
+            echo "no bias log change."
+          fi
