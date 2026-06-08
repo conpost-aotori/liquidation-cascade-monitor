@@ -2,6 +2,7 @@
 .env
 __pycache__/
 *.pyc
-/out/
+/out/*
+!/out/bias_log.jsonl
 .DS_Store
 node_modules/

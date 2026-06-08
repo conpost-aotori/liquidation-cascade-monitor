@@ -21,6 +21,9 @@ concurrency:
   group: post-liquidation-map
   cancel-in-progress: false
 
+permissions:
+  contents: write # commit the appended out/bias_log.jsonl back to the repo
+
 env:
   SPECIAL_WINDOW_END: "2026-06-05 02:00:00 UTC" # 3-hourly until here, then 12-hourly
   X_USER_ID: "2052021032933093377" # @Nishi8mAlert
@@ -139,6 +142,22 @@ jobs:
         with:
           path: out/cache/oi_history.json
           key: oi-history-${{ github.run_id }}
+
+      # Persist the forward-only bias time series (append-only) back to the
+      # repo so downstream consumers (hl-swing-bot) can read it cross-repo.
+      # Git-only; does NOT touch X/Discord posting.
+      - name: Commit bias log
+        if: always() && steps.gate.outputs.run == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -f out/bias_log.jsonl ] && [ -n "$(git status --porcelain out/bias_log.jsonl)" ]; then
+            git add out/bias_log.jsonl
+            git commit -m "chore: append bias observation [skip ci]"
+            git push || (git pull --rebase --autostash && git push)
+          else
+            echo "no bias log change."
+          fi
 
       - name: Upload rendered image
         if: always() && steps.gate.outputs.run == 'true'
