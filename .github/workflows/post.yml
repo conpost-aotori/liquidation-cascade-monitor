@@ -101,9 +101,42 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-${{ runner.os }}
 
-      - name: Install Japanese fonts (render fallback)
+      - name: Install Japanese fonts (render fallback; Noto Sans CJK from upstream release)
+        # apt's fonts-noto-cjk (61 MB) sometimes crawls from the Ubuntu mirror and the
+        # job hits timeout-minutes before it can post. Fetch the same .ttc files from the
+        # pinned upstream release into the same path apt uses (paths/family names unchanged).
         if: steps.gate.outputs.run == 'true'
-        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          d=/usr/share/fonts/opentype/noto
+          sudo mkdir -p "$d"
+          base=https://github.com/notofonts/noto-cjk/raw/Sans2.004/Sans/OTC
+          for f in NotoSansCJK-Regular.ttc NotoSansCJK-Bold.ttc; do
+            sudo curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors --max-time 120 -o "$d/$f" "$base/$f"
+          done
+          # Same lang=ja rules apt's /etc/fonts/conf.d/70-fonts-noto-cjk.conf adds, so
+          # Chromium keeps preferring Noto Sans CJK JP over the IPA/WQY fonts that
+          # Playwright --with-deps installs.
+          sudo tee /etc/fonts/conf.d/70-fonts-noto-cjk.conf >/dev/null <<'EOF'
+          <?xml version="1.0"?>
+          <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+          <fontconfig>
+            <match target="pattern">
+              <test name="lang"><string>ja</string></test>
+              <test name="family"><string>sans-serif</string></test>
+              <edit name="family" mode="prepend"><string>Noto Sans CJK JP</string></edit>
+            </match>
+            <match target="pattern">
+              <test name="lang"><string>ja</string></test>
+              <test name="family"><string>monospace</string></test>
+              <edit name="family" mode="prepend"><string>Noto Sans Mono CJK JP</string></edit>
+            </match>
+          </fontconfig>
+          EOF
+          sudo fc-cache -f >/dev/null
+          fams="$(fc-list : family)"
+          grep -qF "Noto Sans CJK JP" <<<"$fams" || { echo "::error::Noto Sans CJK JP not registered"; exit 1; }
 
       - name: Install dependencies
         if: steps.gate.outputs.run == 'true'
